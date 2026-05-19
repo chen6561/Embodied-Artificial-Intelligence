@@ -1,199 +1,84 @@
-# CLIP
+# SigLIP & CLIP 模拟训练实现
 
-[[Blog]](https://openai.com/blog/clip/) [[Paper]](https://arxiv.org/abs/2103.00020) [[Model Card]](model-card.md) [[Colab]](https://colab.research.google.com/github/openai/clip/blob/master/notebooks/Interacting_with_CLIP.ipynb)
+本项目提供了 **CLIP**（Contrastive Language-Image Pre-training）和其改进版本 **SigLIP**（Sigmoid Loss for Language-Image Pre-training）的极简模拟训练实现，核心聚焦两者的核心差异（损失函数），使用模拟图像+真实英文句子完成端到端训练。
 
-CLIP (Contrastive Language-Image Pre-Training) is a neural network trained on a variety of (image, text) pairs. It can be instructed in natural language to predict the most relevant text snippet, given an image, without directly optimizing for the task, similarly to the zero-shot capabilities of GPT-2 and 3. We found CLIP matches the performance of the original ResNet50 on ImageNet “zero-shot” without using any of the original 1.28M labeled examples, overcoming several major challenges in computer vision.
+## 核心差异
+| 特性                | CLIP                          | SigLIP                        |
+|---------------------|-------------------------------|-------------------------------|
+| 损失函数            | InfoNCE（CrossEntropy）| Sigmoid Loss（BCEWithLogits） |
+| 温度系数            | 可学习参数                    | 固定值（无需学习）|
+| 损失计算逻辑        | 图像/文本双视角对比损失       | 全局图文对二元交叉熵         |
+| 标签构造            | 对角线为正确标签（0~B-1）| 对角线为1，其余为0（带平滑） |
+| 优势                | 经典图文对比学习基线          | 训练更稳定、适合大批次场景    |
 
-
-
-## Approach
-
-![CLIP](CLIP.png)
-
-
-
-## Usage
-
-First, [install PyTorch 1.7.1](https://pytorch.org/get-started/locally/) (or later) and torchvision, as well as small additional dependencies, and then install this repo as a Python package. On a CUDA GPU machine, the following will do the trick:
-
+## 环境依赖
 ```bash
-$ conda install --yes -c pytorch pytorch=1.7.1 torchvision cudatoolkit=11.0
-$ pip install ftfy regex tqdm
-$ pip install git+https://github.com/openai/CLIP.git
+# 基础依赖
+pip install torch tqdm clip
+# 注意：clip库需安装官方版本（openai/CLIP），用于文本tokenize
 ```
 
-Replace `cudatoolkit=11.0` above with the appropriate CUDA version on your machine or `cpuonly` when installing on a machine without a GPU.
+## 快速开始
 
-```python
-import torch
-import clip
-from PIL import Image
-
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model, preprocess = clip.load("ViT-B/32", device=device)
-
-image = preprocess(Image.open("CLIP.png")).unsqueeze(0).to(device)
-text = clip.tokenize(["a diagram", "a dog", "a cat"]).to(device)
-
-with torch.no_grad():
-    image_features = model.encode_image(image)
-    text_features = model.encode_text(text)
-    
-    logits_per_image, logits_per_text = model(image, text)
-    probs = logits_per_image.softmax(dim=-1).cpu().numpy()
-
-print("Label probs:", probs)  # prints: [[0.9927937  0.00421068 0.00299572]]
+### 1. 训练CLIP
+```bash
+python train_clip_simulated.py
 ```
 
-
-## API
-
-The CLIP module `clip` provides the following methods:
-
-#### `clip.available_models()`
-
-Returns the names of the available CLIP models.
-
-#### `clip.load(name, device=..., jit=False)`
-
-Returns the model and the TorchVision transform needed by the model, specified by the model name returned by `clip.available_models()`. It will download the model as necessary. The `name` argument can also be a path to a local checkpoint.
-
-The device to run the model can be optionally specified, and the default is to use the first CUDA device if there is any, otherwise the CPU. When `jit` is `False`, a non-JIT version of the model will be loaded.
-
-#### `clip.tokenize(text: Union[str, List[str]], context_length=77)`
-
-Returns a LongTensor containing tokenized sequences of given text input(s). This can be used as the input to the model
-
----
-
-The model returned by `clip.load()` supports the following methods:
-
-#### `model.encode_image(image: Tensor)`
-
-Given a batch of images, returns the image features encoded by the vision portion of the CLIP model.
-
-#### `model.encode_text(text: Tensor)`
-
-Given a batch of text tokens, returns the text features encoded by the language portion of the CLIP model.
-
-#### `model(image: Tensor, text: Tensor)`
-
-Given a batch of images and a batch of text tokens, returns two Tensors, containing the logit scores corresponding to each image and text input. The values are cosine similarities between the corresponding image and text features, times 100.
-
-
-
-## More Examples
-
-### Zero-Shot Prediction
-
-The code below performs zero-shot prediction using CLIP, as shown in Appendix B in the paper. This example takes an image from the [CIFAR-100 dataset](https://www.cs.toronto.edu/~kriz/cifar.html), and predicts the most likely labels among the 100 textual labels from the dataset.
-
-```python
-import os
-import clip
-import torch
-from torchvision.datasets import CIFAR100
-
-# Load the model
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model, preprocess = clip.load('ViT-B/32', device)
-
-# Download the dataset
-cifar100 = CIFAR100(root=os.path.expanduser("~/.cache"), download=True, train=False)
-
-# Prepare the inputs
-image, class_id = cifar100[3637]
-image_input = preprocess(image).unsqueeze(0).to(device)
-text_inputs = torch.cat([clip.tokenize(f"a photo of a {c}") for c in cifar100.classes]).to(device)
-
-# Calculate features
-with torch.no_grad():
-    image_features = model.encode_image(image_input)
-    text_features = model.encode_text(text_inputs)
-
-# Pick the top 5 most similar labels for the image
-image_features /= image_features.norm(dim=-1, keepdim=True)
-text_features /= text_features.norm(dim=-1, keepdim=True)
-similarity = (100.0 * image_features @ text_features.T).softmax(dim=-1)
-values, indices = similarity[0].topk(5)
-
-# Print the result
-print("\nTop predictions:\n")
-for value, index in zip(values, indices):
-    print(f"{cifar100.classes[index]:>16s}: {100 * value.item():.2f}%")
+### 2. 训练SigLIP
+```bash
+python train_siglip_simulated.py
 ```
 
-The output will look like the following (the exact numbers may be slightly different depending on the compute device):
+## 代码结构说明
 
-```
-Top predictions:
+### 通用模块
+| 模块                | 功能说明                                                                 |
+|---------------------|--------------------------------------------------------------------------|
+| 超参数定义          | 批次大小、学习率、特征维度等（与官方CLIP保持一致）|
+| 数据生成函数        | 生成随机模拟图像（3×224×224）+ 真实英文句子token（CLIP官方分词器处理）|
+| 编码器结构          | 图像/文本编码器均采用极简线性层实现（保持CLIP特征维度对齐逻辑）|
 
-           snake: 65.31%
-          turtle: 12.29%
-    sweet_pepper: 3.83%
-          lizard: 1.88%
-       crocodile: 1.75%
-```
+### CLIP 核心实现
+- **模型类**：`SimpleCLIP`，包含可学习温度系数
+- **前向传播**：计算图像→文本、文本→图像双向相似度矩阵
+- **损失函数**：`clip_loss`，双视角交叉熵损失平均（InfoNCE）
 
-Note that this example uses the `encode_image()` and `encode_text()` methods that return the encoded features of given inputs.
+### SigLIP 核心实现
+- **模型类**：`SimpleSigLIP`，温度系数固定（无需学习）
+- **前向传播**：仅计算全局图文相似度矩阵（无需双向拆分）
+- **损失函数**：`siglip_loss`，带标签平滑的二元交叉熵（Sigmoid Loss）
 
+## 关键超参数说明
+| 参数名             | 取值    | 说明                                                                 |
+|--------------------|---------|----------------------------------------------------------------------|
+| BATCH_SIZE         | 16      | 批次大小（每次训练16组图文对）|
+| EPOCHS             | 10      | 训练轮数（每轮训练100个batch）|
+| LR                 | 1e-4    | 学习率（AdamW优化器）|
+| TAU（SigLIP）| 0.07    | 固定温度系数（SigLIP标准取值）|
+| LABEL_SMOOTHING    | 0.1     | 标签平滑系数（提升SigLIP泛化性）|
+| EMBED_DIM          | 512     | 图文特征最终对齐维度（与CLIP官方一致）|
 
-### Linear-probe evaluation
+## 训练输出
+- 训练过程实时显示每batch的损失值，每轮结束打印平均损失
+- 训练完成后自动保存模型权重：
+  - CLIP：`simulated_clip_real_text.pth`
+  - SigLIP：`simulated_siglip_real_text.pth`
 
-The example below uses [scikit-learn](https://scikit-learn.org/) to perform logistic regression on image features.
+## 核心逻辑亮点
+1. **极简实现**：用线性层替代CLIP复杂的视觉/文本Transformer，聚焦核心对比逻辑
+2. **数据模拟**：无需真实图像数据集，随机张量模拟图像+真实英文句子保证文本合理性
+3. **损失对比**：清晰区分CLIP双视角交叉熵 vs SigLIP全局Sigmoid Loss
+4. **标签平滑**：SigLIP实现标签平滑逻辑，避免模型过拟合到硬标签
 
-```python
-import os
-import clip
-import torch
+## 注意事项
+1. 本实现为**教学演示版**，仅保留核心逻辑，未使用CLIP官方的Transformer编码器
+2. 温度系数：CLIP为可学习参数（初始值2.6592），SigLIP固定为0.07（行业标准）
+3. 硬件支持：自动检测CUDA，优先使用GPU训练（CPU也可运行，速度较慢）
+4. 文本处理：复用CLIP官方tokenizer，保证文本输入格式与官方一致
 
-import numpy as np
-from sklearn.linear_model import LogisticRegression
-from torch.utils.data import DataLoader
-from torchvision.datasets import CIFAR100
-from tqdm import tqdm
-
-# Load the model
-device = "cuda" if torch.cuda.is_available() else "cpu"
-model, preprocess = clip.load('ViT-B/32', device)
-
-# Load the dataset
-root = os.path.expanduser("~/.cache")
-train = CIFAR100(root, download=True, train=True, transform=preprocess)
-test = CIFAR100(root, download=True, train=False, transform=preprocess)
-
-
-def get_features(dataset):
-    all_features = []
-    all_labels = []
-    
-    with torch.no_grad():
-        for images, labels in tqdm(DataLoader(dataset, batch_size=100)):
-            features = model.encode_image(images.to(device))
-
-            all_features.append(features)
-            all_labels.append(labels)
-
-    return torch.cat(all_features).cpu().numpy(), torch.cat(all_labels).cpu().numpy()
-
-# Calculate the image features
-train_features, train_labels = get_features(train)
-test_features, test_labels = get_features(test)
-
-# Perform logistic regression
-classifier = LogisticRegression(random_state=0, C=0.316, max_iter=1000, verbose=1)
-classifier.fit(train_features, train_labels)
-
-# Evaluate using the logistic regression classifier
-predictions = classifier.predict(test_features)
-accuracy = np.mean((test_labels == predictions).astype(float)) * 100.
-print(f"Accuracy = {accuracy:.3f}")
-```
-
-Note that the `C` value should be determined via a hyperparameter sweep using a validation split.
-
-
-## See Also
-
-* [OpenCLIP](https://github.com/mlfoundations/open_clip): includes larger and independently trained CLIP models up to ViT-G/14
-* [Hugging Face implementation of CLIP](https://huggingface.co/docs/transformers/model_doc/clip): for easier integration with the HF ecosystem
+## 扩展方向
+1. 替换编码器：将线性层替换为CLIP官方的Vision Transformer/Text Transformer
+2. 真实数据：接入COCO、Flickr等图文数据集，替换模拟图像
+3. 大批次训练：验证SigLIP在大批次下的训练稳定性优势
+4. 温度系数对比：测试SigLIP使用可学习温度系数的效果
