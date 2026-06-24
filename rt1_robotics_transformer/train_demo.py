@@ -43,7 +43,7 @@ class ToyRT1Dataset(Dataset):
         )
 
         # 伪造的文本指令嵌入。
-        # 在真实项目里，这一步应该来自语言编码器。
+        # 为当前样本单独创建一个可复现的随机数生成器，并把随机种子设成 index。在真实项目里，这一步应该来自语言编码器。
         text = torch.randn(self.config.text_dim, generator=g)
 
         # 构造一个同时依赖视觉和语言的目标动作。
