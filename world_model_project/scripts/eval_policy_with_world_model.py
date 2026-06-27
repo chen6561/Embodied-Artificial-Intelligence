@@ -1,4 +1,8 @@
-from __future__ import annotations
+﻿from __future__ import annotations
+
+from bootstrap import add_project_root_to_path
+
+add_project_root_to_path()
 
 import argparse
 
@@ -58,3 +62,5 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
