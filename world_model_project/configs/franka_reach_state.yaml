@@ -1,0 +1,28 @@
+seed: 7
+task:
+  name: franka_reach_state
+  max_steps: 100
+  obs_dim: 21
+  action_dim: 7
+  goal_dim: 3
+  success_threshold: 0.05
+data:
+  raw_dir: data/raw/franka_reach_state
+  processed_dir: data/processed/franka_reach_state
+  num_episodes: 256
+  batch_size: 128
+model:
+  latent_dim: 128
+  hidden_dim: 256
+  rollout_horizon: 5
+train:
+  epochs: 20
+  lr: 0.0003
+  weight_decay: 0.00001
+  device: cpu
+mpc:
+  horizon: 12
+  num_samples: 256
+  num_elites: 32
+  iterations: 3
+  action_std: 0.35
