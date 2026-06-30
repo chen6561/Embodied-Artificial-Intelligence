@@ -17,7 +17,67 @@ model:
   rollout_horizon: 5
 train:
   epochs: 20
+  lr: 0.0003 # Random seed for reproducibility of experiments (ensures consistent initialization)
+seed: 7
+
+# Task configuration for the Franka robot reach (state-based) task
+task:
+  # Unique identifier for the task (Franka arm reaching task using state observations)
+  name: franka_reach_state
+  # Maximum number of timesteps allowed per episode (terminates if goal not reached by this step)
+  max_steps: 100
+  # Dimensionality of the observation space (includes robot joint states, end-effector pose, goal position)
+  obs_dim: 21
+  # Dimensionality of the action space (7 DOF for Franka robot joint velocity commands)
+  action_dim: 7
+  # Dimensionality of the goal space (3D Cartesian coordinates for end-effector target position)
+  goal_dim: 3
+  # Euclidean distance threshold (meters) to consider the reach task successful (0.05m = 5cm)
+  success_threshold: 0.05
+
+# Data processing and storage configuration
+data:
+  # Directory path for raw, unprocessed episode data (collected from environment interactions)
+  raw_dir: data/raw/franka_reach_state
+  # Directory path for processed/normalized data (ready for model training)
+  processed_dir: data/processed/franka_reach_state
+  # Total number of training episodes to collect/generate for the dataset
+  num_episodes: 256
+  # Batch size for mini-batch gradient descent during model training
+  batch_size: 128
+
+# Model architecture and configuration (dynamics/model predictive control network)
+model:
+  # Dimensionality of the latent space in the dynamics model (encodes state/action information)
+  latent_dim: 128
+  # Number of units in hidden layers of the neural network
+  hidden_dim: 256
+  # Horizon length for rollout predictions in the dynamics model (steps into future)
+  rollout_horizon: 5
+
+# Training hyperparameters for the dynamics model
+train:
+  # Number of full training epochs (passes through entire dataset)
+  epochs: 20
+  # Learning rate for the Adam optimizer (small value for stable convergence)
   lr: 0.0003
+  # L2 weight decay (regularization to prevent overfitting)
+  weight_decay: 0.00001
+  # Computing device for training (CPU; can be changed to 'cuda' for GPU acceleration)
+  device: cpu
+
+# Model Predictive Control (MPC) configuration for action planning
+mpc:
+  # Planning horizon (number of future steps MPC optimizes over)
+  horizon: 12
+  # Number of action sequence samples to generate per MPC iteration (CEM sampling)
+  num_samples: 256
+  # Number of elite (top-performing) samples to keep for next CEM iteration
+  num_elites: 32
+  # Number of CEM iterations to run per MPC planning step
+  iterations: 3
+  # Standard deviation of Gaussian noise added to action samples (exploration)
+  action_std: 0.35
   weight_decay: 0.00001
   device: cpu
 mpc:
