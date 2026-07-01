@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info
+.pytest_cache
+.ipynb_checkpoints
+
+*.csv
+*.json
+
+thumbs.db
+.DS_Store
+.idea
+coco_2014_caption/
+output/
+Qwen/
+swanlog/
