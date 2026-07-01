@@ -1,88 +1,73 @@
-seed: 7
-task:
-  name: franka_reach_state
-  max_steps: 100
-  obs_dim: 21
-  action_dim: 7
-  goal_dim: 3
-  success_threshold: 0.05
-data:
-  raw_dir: data/raw/franka_reach_state
-  processed_dir: data/processed/franka_reach_state
-  num_episodes: 256
-  batch_size: 128
-model:
-  latent_dim: 128
-  hidden_dim: 256
-  rollout_horizon: 5
-train:
-  epochs: 20
-  lr: 0.0003 # Random seed for reproducibility of experiments (ensures consistent initialization)
+# 实验随机种子，保证实验可复现，所有随机操作固定为7
 seed: 7
 
-# Task configuration for the Franka robot reach (state-based) task
+# Franka机械臂基于状态的到达任务 任务配置
 task:
-  # Unique identifier for the task (Franka arm reaching task using state observations)
+  # 任务唯一标识名称（使用状态观测的Franka机械臂到达任务）
   name: franka_reach_state
-  # Maximum number of timesteps allowed per episode (terminates if goal not reached by this step)
+  # 单个回合允许的最大交互步数，超过步数未抵达目标则回合终止
   max_steps: 100
-  # Dimensionality of the observation space (includes robot joint states, end-effector pose, goal position)
+  # 观测空间维度（包含机械关节状态、末端位姿、目标坐标）
   obs_dim: 21
-  # Dimensionality of the action space (7 DOF for Franka robot joint velocity commands)
+  # 动作空间维度（Franka七自由度关节速度控制指令）
   action_dim: 7
-  # Dimensionality of the goal space (3D Cartesian coordinates for end-effector target position)
+  # 目标空间维度（末端3维笛卡尔坐标）
   goal_dim: 3
-  # Euclidean distance threshold (meters) to consider the reach task successful (0.05m = 5cm)
+  # 判断到达成功的欧氏距离阈值，单位米，0.05即5厘米
   success_threshold: 0.05
 
-# Data processing and storage configuration
+# 数据集存储与处理相关配置
 data:
-  # Directory path for raw, unprocessed episode data (collected from environment interactions)
+  # 原始交互数据存放路径
   raw_dir: data/raw/franka_reach_state
-  # Directory path for processed/normalized data (ready for model training)
+  # 预处理、归一化后的训练数据集存放路径
   processed_dir: data/processed/franka_reach_state
-  # Total number of training episodes to collect/generate for the dataset
+  # 采集/生成的总训练回合数量
   num_episodes: 256
-  # Batch size for mini-batch gradient descent during model training
+  # 模型训练小批次梯度下降的批次大小
   batch_size: 128
 
-# Model architecture and configuration (dynamics/model predictive control network)
+# 世界动力学模型网络结构配置
 model:
-  # Dimensionality of the latent space in the dynamics model (encodes state/action information)
+  # 动力学模型隐向量维度，用于编码状态+动作信息
   latent_dim: 128
-  # Number of units in hidden layers of the neural network
+  # 神经网络隐藏层神经元数量
   hidden_dim: 256
-  # Horizon length for rollout predictions in the dynamics model (steps into future)
+  # 动力学多步推演预测长度
   rollout_horizon: 5
 
-# Training hyperparameters for the dynamics model
+# 动力学模型训练超参
 train:
-  # Number of full training epochs (passes through entire dataset)
+  # 完整数据集遍历训练轮数
   epochs: 20
-  # Learning rate for the Adam optimizer (small value for stable convergence)
-  lr: 0.0003
-  # L2 weight decay (regularization to prevent overfitting)
+  # Adam优化器学习率，小学习率保证收敛稳定
+  lr: 0.0003 # 实验随机种子，保证实验可复现（和上方seed对应）
+  # L2权重衰减，正则化防止模型过拟合
   weight_decay: 0.00001
-  # Computing device for training (CPU; can be changed to 'cuda' for GPU acceleration)
+  # 训练使用计算设备，可改为cuda使用GPU加速
   device: cpu
 
-# Model Predictive Control (MPC) configuration for action planning
+# MPC模型预测控制规划器配置
 mpc:
-  # Planning horizon (number of future steps MPC optimizes over)
+  # MPC优化前瞻时域，规划未来多少步动作序列
   horizon: 12
-  # Number of action sequence samples to generate per MPC iteration (CEM sampling)
+  # CEM交叉熵方法单次迭代采样动作序列总数
   num_samples: 256
-  # Number of elite (top-performing) samples to keep for next CEM iteration
+  # 每轮迭代保留最优精英轨迹数量，用于更新高斯分布
   num_elites: 32
-  # Number of CEM iterations to run per MPC planning step
+  # 单次规划执行CEM迭代优化轮数
   iterations: 3
-  # Standard deviation of Gaussian noise added to action samples (exploration)
+  # 动作采样高斯噪声标准差，控制探索程度
   action_std: 0.35
   weight_decay: 0.00001
   device: cpu
+
+# 下方mpc配置为最终生效配置，上方mpc段会被覆盖
 mpc:
   horizon: 12
   num_samples: 256
   num_elites: 32
   iterations: 3
   action_std: 0.35
+# 重复seed，统一全局随机种子
+seed: 7
